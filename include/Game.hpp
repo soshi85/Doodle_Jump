@@ -3,12 +3,15 @@
 #include <SFML/Graphics.hpp>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "ResourceManager.hpp"
 #include "Player.hpp"
 #include "PlatformManager.hpp"
 #include "HighScoreManager.hpp"
 #include "Button.hpp"
+#include "Monster.hpp"
+#include "Bullet.hpp"
 
 enum class GameState{
     MainMenu,
@@ -40,6 +43,8 @@ private:
     Button startButton;
     Button restartButton;
     Button menuButton;
+
+    std::vector<Bullet*> bullets;
 
     void processEvents();
     void update(sf::Time deltaTime);

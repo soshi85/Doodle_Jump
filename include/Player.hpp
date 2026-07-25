@@ -5,7 +5,11 @@
 class Player {
 private:
     sf::Sprite sprite;
+    sf::Sprite snoutSprite;
     sf::Vector2f velocity;
+    const sf::Texture* textureShoot;
+    float fireCooldown;
+    bool isShootingState;
     float highestY;
     int score;
     const sf::Texture* textureLeft;
@@ -14,6 +18,7 @@ private:
 public:
 
     Player(const sf::Texture& leftTex, const sf::Texture& rightTex);
+    Player(const sf::Texture& leftTex, const sf::Texture& rightTex, const sf::Texture& shootTex, const sf::Texture& nose);
 
     void update(sf::Time deltaTime);
     void render(sf::RenderWindow& window);
@@ -24,5 +29,6 @@ public:
     float getVelocityY() const;
     void move(sf::Vector2f offset);
     int getScore() const;
+    bool wantsToShoot();
 };
 

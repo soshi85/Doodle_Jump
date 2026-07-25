@@ -24,4 +24,8 @@ namespace Constants {
 
     const float GENERATION_MARGIN_ABOVE_SCREEN= 400.f;
     const float REMOVAL_MARGIN_BELOW_SCREEN= 80.f;
+    
+    const float BULLET_SPEED = 800.0f;
+    const float FIRE_RATE_MEDIUM = 0.3f;
+    const float MONSTER_SPEED = 100.0f;
 }

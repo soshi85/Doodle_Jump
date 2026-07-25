@@ -16,15 +16,30 @@ PlatformManager::PlatformManager(ResourceManager<sf::Texture>& textures)
 {
 }
 
+bool PlatformManager::isSpaceFree(const sf::FloatRect& bounds) const {
+    for (const auto& platform : platforms) {
+        if (platform->getBounds().findIntersection(bounds).has_value()) {
+            return false;
+        }
+    }
+    for (const auto& monster : monsters) {
+        if (monster->getBounds().findIntersection(bounds).has_value()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void PlatformManager::reset(sf::Vector2f groundPosition) {
     platforms.clear();
-
+    monsters.clear(); 
+    
     platforms.push_back(std::make_unique<NormalPlatform>(
         textureManager.get("assets/normal_platform.png"), groundPosition));
 
     highestGeneratedY = groundPosition.y;
 
-    while (highestGeneratedY >-Constants::GENERATION_MARGIN_ABOVE_SCREEN){
+    while (highestGeneratedY > -Constants::GENERATION_MARGIN_ABOVE_SCREEN){
         generatePlatformAbove(highestGeneratedY);
     }
 }
@@ -94,6 +109,19 @@ void PlatformManager::generatePlatformAbove(float y) {
 
     platforms.push_back(std::move(platform));
     highestGeneratedY = newY;
+
+    if (y < -300.f && roll(rng) < 0.15f) { 
+        float mX = xDist(rng);
+        float mY = newY - 60.f;
+        sf::FloatRect proposedBounds(sf::Vector2f{mX, mY}, sf::Vector2f{40.f, 40.f}); 
+        
+        if (isSpaceFree(proposedBounds)) {
+            MonsterType mType = (roll(rng) < 0.5f) ? MonsterType::Blue : MonsterType::Green;
+            std::string texName = (mType == MonsterType::Blue) ? "assets/BlueMonster.png" : "assets/green_monster.png";
+            monsters.push_back(std::make_unique<Monster>(textureManager.get(texName), sf::Vector2f{mX, mY}, 1, mType));
+        }
+    }
+
 }
 
 void PlatformManager::update(sf::Time deltaTime, float scrollAmount){
@@ -101,6 +129,13 @@ void PlatformManager::update(sf::Time deltaTime, float scrollAmount){
         platform->update(deltaTime);
         if (scrollAmount > 0.f) {
             platform->move({0.f, scrollAmount});
+        }
+    }
+    
+    for (auto& monster : monsters) {
+        monster->update(deltaTime);
+        if (scrollAmount > 0.f) {
+            monster->move(sf::Vector2f{0.f, scrollAmount});
         }
     }
 
@@ -114,6 +149,13 @@ void PlatformManager::update(sf::Time deltaTime, float scrollAmount){
                        static_cast<float>(Constants::WINDOW_HEIGHT)+Constants::REMOVAL_MARGIN_BELOW_SCREEN;}),
                        platforms.end());
 
+    monsters.erase(
+        std::remove_if(monsters.begin(), monsters.end(),[](const std::unique_ptr<Monster>& m){
+                return m->isOffScreen(static_cast<float>(Constants::WINDOW_HEIGHT));}),
+                monsters.end());
+
+
+    
     while (highestGeneratedY> -Constants::GENERATION_MARGIN_ABOVE_SCREEN){
         generatePlatformAbove(highestGeneratedY);
     }
@@ -123,6 +165,11 @@ void PlatformManager::render(sf::RenderWindow& window){
     for (auto& platform:platforms){
         platform->render(window);
     }
+
+    for (auto& monster : monsters) {
+        monster->render(window);
+    }
+
 }
 
 void PlatformManager::checkCollisions(Player& player) {

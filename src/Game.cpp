@@ -90,12 +90,15 @@ void Game::handleMouseClick(sf::Vector2f worldPos){
 void Game::startNewGame(){
     sf::Texture& texLeft = textureManager.get("assets/left_doodle.png");
     sf::Texture& texRight = textureManager.get("assets/right_doodle.png");
+    sf::Texture& texShoot = textureManager.get("assets/Shooting@Pose.png"); 
+    sf::Texture& texSnout = textureManager.get("assets/Nose.png");
 
-    player = std::make_unique<Player>(texLeft, texRight);
+    player = std::make_unique<Player>(texLeft, texRight, texShoot, texSnout);
     player->jump();
 
     platformManager.reset(sf::Vector2f{static_cast<float>(Constants::WINDOW_WIDTH)/2.f,
                                         static_cast<float>(Constants::WINDOW_HEIGHT)-40.f});
+
 
     currentState = GameState::Gameplay;
 }
@@ -108,6 +111,18 @@ void Game::update(sf::Time deltaTime){
 
 void Game::updateGameplay(sf::Time deltaTime){
     player->update(deltaTime);
+
+
+    if (player->wantsToShoot()) {
+
+        sf::Texture& bulletTex = textureManager.get("assets/Pea.png"); 
+        sf::Vector2f playerPos = player->getPosition();
+        sf::FloatRect playerBounds = player->getBounds();
+        
+        sf::Vector2f bulletStart(playerPos.x + playerBounds.size.x / 2.0f, playerPos.y);
+        bullets.push_back(new Bullet(bulletTex, bulletStart));
+    }
+
     float scrollThreshold = static_cast<float>(Constants::WINDOW_HEIGHT) * Constants::SCROLL_THRESHOLD_RATIO;
     float scrollAmount = 0.f;
     
@@ -119,13 +134,67 @@ void Game::updateGameplay(sf::Time deltaTime){
     platformManager.update(deltaTime, scrollAmount);
     platformManager.checkCollisions(*player);
 
+    for (auto it = bullets.begin(); it != bullets.end(); ) {
+        (*it)->update(deltaTime);
+        if (scrollAmount > 0.f) {
+            (*it)->move({0.f, scrollAmount});
+        }
+        
+        if ((*it)->isOffScreen()) {
+            delete *it;
+            it = bullets.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    auto& activeMonsters = platformManager.getMonsters();
+
+    for (auto bIt = bullets.begin(); bIt != bullets.end(); ) {
+        bool bulletHit = false;
+        for (auto mIt = activeMonsters.begin(); mIt != activeMonsters.end(); ) {
+            if ((*bIt)->getBounds().findIntersection((*mIt)->getBounds()).has_value()) {
+                bulletHit = true;
+                if ((*mIt)->takeDamage()) { 
+                    mIt = activeMonsters.erase(mIt); 
+                } else {
+                    ++mIt;
+                }
+                break; 
+            } else {
+                ++mIt;
+            }
+        }
+        
+        if (bulletHit) {
+            delete *bIt;
+            bIt = bullets.erase(bIt);
+        } else {
+            ++bIt;
+        }
+    }
+
+    sf::FloatRect playerBounds = player->getBounds();
+    for (auto mIt = activeMonsters.begin(); mIt != activeMonsters.end(); ++mIt) {
+        if (playerBounds.findIntersection((*mIt)->getBounds()).has_value()) {
+            if (player->getVelocityY() > 0.f && (player->getPosition().y + playerBounds.size.y) < ((*mIt)->getPosition().y + 30.f)) {
+                player->jump(Constants::SPRING_JUMP_VELOCITY); 
+            } else {
+                currentState = GameState::GameOver;
+            }
+        }
+    }
+
     scoreText.setString("Score: " + std::to_string(player->getScore()));
 
     if (player->getPosition().y > static_cast<float>(Constants::WINDOW_HEIGHT)) {
+        currentState = GameState::GameOver;
+    }
+
+    if (currentState == GameState::GameOver) {
         highScoreManager.reportScore(player->getScore());
         finalScoreText.setString("Score: " + std::to_string(player->getScore()) +  "   High Score: " + std::to_string(highScoreManager.get()));
         centerOrigin(finalScoreText);
-        currentState = GameState::GameOver;
     }
 }
 
@@ -155,11 +224,9 @@ void Game::renderMenu(){
 }
 
 void Game::renderGameplay() {
-    platformManager.render(window);
-    if (player) {
-        player->render(window);
-    }
-
+    platformManager.render(window);    
+    for (auto b : bullets) b->render(window);
+    if (player) player->render(window);
     window.draw(scoreText);
 }
 
