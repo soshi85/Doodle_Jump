@@ -1,5 +1,6 @@
 #include "Game.hpp"
 #include "Constants.hpp"
+#include "GameSetting.hpp" 
 #include <optional>
 #include <string>
 
@@ -11,24 +12,31 @@ namespace {
 }
 
 Game::Game() : 
-
-    window(sf::VideoMode(sf::Vector2u{Constants::WINDOW_WIDTH, Constants::WINDOW_HEIGHT}), "Doodle Jump"),
+      window(sf::VideoMode(sf::Vector2u{Constants::WINDOW_WIDTH, Constants::WINDOW_HEIGHT}), "Doodle Jump"),
       currentState(GameState::MainMenu),
       highScoreManager("highscore.txt"),
       platformManager(textureManager),
       backgroundSprite(textureManager.get("assets/background.png")), 
       
-    
       titleText(fontManager.get("fonts/ariblk.ttf"), "DOODLE JUMP", 36),
       menuHighScoreText(fontManager.get("fonts/ariblk.ttf"), "High Score: 0", 18),
       scoreText(fontManager.get("fonts/ariblk.ttf"), "Score: 0", 20),
       gameOverText(fontManager.get("fonts/ariblk.ttf"), "YOU LOST", 40),
       finalScoreText(fontManager.get("fonts/ariblk.ttf"), "Score: 0", 18),
       
-    
+      gameSettings("settings.txt"),
+      
+      settingsButtonText(fontManager.get("fonts/ariblk.ttf")),
+      difficultyText(fontManager.get("fonts/ariblk.ttf")),
+      volumeText(fontManager.get("fonts/ariblk.ttf")),
+      backText(fontManager.get("fonts/ariblk.ttf")), 
+      
       startButton(fontManager.get("fonts/ariblk.ttf"), "Start", sf::Vector2f{static_cast<float>(Constants::WINDOW_WIDTH)/2.f-70.f, 340.f}, sf::Vector2f{140.f, 46.f}, sf::Color{90, 170, 90}),
       restartButton(fontManager.get("fonts/ariblk.ttf"), "Restart", sf::Vector2f{static_cast<float>(Constants::WINDOW_WIDTH) / 2.f - 70.f, 380.f}, sf::Vector2f{140.f, 46.f}, sf::Color{230, 160, 60}),
-      menuButton(fontManager.get("fonts/ariblk.ttf"), "Menu", sf::Vector2f{static_cast<float>(Constants::WINDOW_WIDTH) / 2.f - 70.f, 440.f}, sf::Vector2f{140.f, 46.f}, sf::Color{90, 140, 220})
+      menuButton(fontManager.get("fonts/ariblk.ttf"), "Menu", sf::Vector2f{static_cast<float>(Constants::WINDOW_WIDTH) / 2.f - 70.f, 440.f}, sf::Vector2f{140.f, 46.f}, sf::Color{90, 140, 220}),
+    
+      jumpSound(soundManager.get("sounds/Jumping_Sound.wav")),
+      shootSound(soundManager.get("sounds/Shooting_Sound.wav"))
 {
     window.setFramerateLimit(60);
     float centerX = static_cast<float>(Constants::WINDOW_WIDTH) / 2.f;
@@ -46,6 +54,31 @@ Game::Game() :
     
     centerOrigin(finalScoreText);
     finalScoreText.setPosition({centerX, 260.f});
+
+    settingsButtonText.setString("Settings");
+    settingsButtonText.setCharacterSize(30);
+    settingsButtonText.setPosition(sf::Vector2f{centerX, 500.f}); 
+    centerOrigin(settingsButtonText);
+
+    volumeBarBg.setSize(sf::Vector2f{200.f, 20.f});
+    volumeBarBg.setFillColor(sf::Color{150, 150, 150});
+    volumeBarBg.setPosition(sf::Vector2f{centerX - 100.f, 390.f}); 
+    
+    volumeBarFill.setSize(sf::Vector2f{200.f, 20.f});
+    volumeBarFill.setFillColor(sf::Color{50, 200, 50});
+    volumeBarFill.setPosition(sf::Vector2f{centerX - 100.f, 390.f});
+
+    backText.setString("Back to Menu");
+    backText.setCharacterSize(30);
+    backText.setPosition(sf::Vector2f{centerX, 500.f});
+    centerOrigin(backText);
+
+    if (bgMusic.openFromFile("sounds/MainMenu_Song.flac")) {
+        bgMusic.setLooping(true);
+        bgMusic.play();
+    }
+    updateAudioVolume();
+    updateSettingsTexts();
 }
 
 void Game::run() {
@@ -59,14 +92,11 @@ void Game::run() {
 }
 
 void Game::processEvents(){
-
     while (const std::optional<sf::Event> event = window.pollEvent()){
         if (event->is<sf::Event::Closed>()) {
             window.close();
         } 
-
         else if (const auto* mouseBtn = event->getIf<sf::Event::MouseButtonPressed>()) {
-
             sf::Vector2f worldPos = window.mapPixelToCoords(mouseBtn->position);
              handleMouseClick(worldPos);
         }
@@ -75,11 +105,51 @@ void Game::processEvents(){
 
 void Game::handleMouseClick(sf::Vector2f worldPos){
     if (currentState == GameState::MainMenu){
+        if (bgMusic.getStatus() != sf::SoundSource::Status::Playing) {
+                bgMusic.play();
+            }
         if (startButton.contains(worldPos)){
             startNewGame();
+        } 
+        else if (settingsButtonText.getGlobalBounds().contains(worldPos)) {
+            currentState = GameState::Settings;
+            if (bgMusic.getStatus() != sf::SoundSource::Status::Playing) {
+                bgMusic.play(); 
+            }
         }
-    } else if (currentState == GameState::GameOver){
-        if (restartButton.contains(worldPos)){
+    } 
+    else if (currentState == GameState::Settings) {
+        if (bgMusic.getStatus() != sf::SoundSource::Status::Playing) {
+                bgMusic.play(); 
+        }
+        if (difficultyText.getGlobalBounds().contains(worldPos)) {
+            Difficulty current = gameSettings.getDifficulty();
+            if (current == Difficulty::Easy) gameSettings.setDifficulty(Difficulty::Medium);
+            else if (current == Difficulty::Medium) gameSettings.setDifficulty(Difficulty::Hard);
+            else gameSettings.setDifficulty(Difficulty::Easy);
+            
+            gameSettings.save();
+            updateSettingsTexts();
+        } 
+        else if (volumeBarBg.getGlobalBounds().contains(worldPos) || volumeText.getGlobalBounds().contains(worldPos)) {
+            
+            float clickX = worldPos.x - volumeBarBg.getPosition().x;
+            float newVol = (clickX / volumeBarBg.getSize().x) * 100.f;
+            
+            if (newVol < 0.f) newVol = 0.f;
+            if (newVol > 100.f) newVol = 100.f;
+            
+            gameSettings.setVolume(newVol);
+            gameSettings.save();
+            updateSettingsTexts();
+            updateAudioVolume(); 
+        }
+        else if (backText.getGlobalBounds().contains(worldPos)) {
+            currentState = GameState::MainMenu;
+        }
+    }
+    else if (currentState == GameState::GameOver){
+        if (restartButton.contains(worldPos)){ 
             startNewGame();
         } else if (menuButton.contains(worldPos)){
             currentState = GameState::MainMenu;
@@ -96,10 +166,13 @@ void Game::startNewGame(){
     player = std::make_unique<Player>(texLeft, texRight, texShoot, texSnout);
     player->jump();
 
+    platformManager.setDifficulty(gameSettings.getDifficulty());
+
     platformManager.reset(sf::Vector2f{static_cast<float>(Constants::WINDOW_WIDTH)/2.f,
                                         static_cast<float>(Constants::WINDOW_HEIGHT)-40.f});
-
-
+    
+    bgMusic.pause();
+    
     currentState = GameState::Gameplay;
 }
 
@@ -110,17 +183,22 @@ void Game::update(sf::Time deltaTime){
 }
 
 void Game::updateGameplay(sf::Time deltaTime){
+
+    shootTimer -= deltaTime.asSeconds();
+
     player->update(deltaTime);
 
-
-    if (player->wantsToShoot()) {
-
+    if (player->wantsToShoot() && shootTimer <= 0.f) {
+        shootSound.play();
+        
         sf::Texture& bulletTex = textureManager.get("assets/Pea.png"); 
         sf::Vector2f playerPos = player->getPosition();
         sf::FloatRect playerBounds = player->getBounds();
         
         sf::Vector2f bulletStart(playerPos.x + playerBounds.size.x / 2.0f, playerPos.y);
         bullets.push_back(new Bullet(bulletTex, bulletStart));
+
+        shootTimer = (gameSettings.getDifficulty() == Difficulty::Easy) ? 0.2f : 0.5f; 
     }
 
     float scrollThreshold = static_cast<float>(Constants::WINDOW_HEIGHT) * Constants::SCROLL_THRESHOLD_RATIO;
@@ -132,7 +210,14 @@ void Game::updateGameplay(sf::Time deltaTime){
     }
 
     platformManager.update(deltaTime, scrollAmount);
+    
+    float prevVelY = player->getVelocityY();
+    
     platformManager.checkCollisions(*player);
+
+    if (prevVelY >= 0.f && player->getVelocityY() < 0.f) {
+        jumpSound.play();
+    }
 
     for (auto it = bullets.begin(); it != bullets.end(); ) {
         (*it)->update(deltaTime);
@@ -185,6 +270,17 @@ void Game::updateGameplay(sf::Time deltaTime){
         }
     }
 
+    auto& activeHoles = platformManager.getHoles();
+    for (auto& hole : activeHoles) {
+        if (playerBounds.findIntersection(hole->getBounds()).has_value()) {
+            player->startSucking(hole->getCenter()); 
+        }
+    }
+
+    if (player->isFullySucked()) {
+        currentState = GameState::GameOver;
+    }
+
     scoreText.setString("Score: " + std::to_string(player->getScore()));
 
     if (player->getPosition().y > static_cast<float>(Constants::WINDOW_HEIGHT)) {
@@ -192,22 +288,28 @@ void Game::updateGameplay(sf::Time deltaTime){
     }
 
     if (currentState == GameState::GameOver) {
-        highScoreManager.reportScore(player->getScore());
-        finalScoreText.setString("Score: " + std::to_string(player->getScore()) +  "   High Score: " + std::to_string(highScoreManager.get()));
+        Difficulty currentDiff = gameSettings.getDifficulty();
+        highScoreManager.reportScore(player->getScore(), currentDiff);
+        
+        finalScoreText.setString("Score: " + std::to_string(player->getScore()) +  "   High Score: " + std::to_string(highScoreManager.get(currentDiff)));
         centerOrigin(finalScoreText);
     }
 }
 
 void Game::render(){
-
     window.clear(sf::Color{200, 240, 255});
     window.draw(backgroundSprite);
 
     if (currentState == GameState::MainMenu){
         renderMenu();
-    } else if (currentState == GameState::Gameplay){
+    } 
+    else if (currentState == GameState::Settings) {
+        renderSettings();
+    } 
+    else if (currentState == GameState::Gameplay){
         renderGameplay();
-    } else {
+    } 
+    else {
         renderGameOver();
     }
 
@@ -215,12 +317,14 @@ void Game::render(){
 }
 
 void Game::renderMenu(){
-    menuHighScoreText.setString("High Score: " + std::to_string(highScoreManager.get()));
+    menuHighScoreText.setString("High Score: " + std::to_string(highScoreManager.get(gameSettings.getDifficulty())));
     centerOrigin(menuHighScoreText);
-
     window.draw(titleText);
     window.draw(menuHighScoreText);
+    
     startButton.render(window);
+    
+    window.draw(settingsButtonText);
 }
 
 void Game::renderGameplay() {
@@ -240,4 +344,39 @@ void Game::renderGameOver() {
     window.draw(finalScoreText);
     restartButton.render(window);
     menuButton.render(window);
+}
+
+void Game::updateSettingsTexts() {
+    std::string diffStr = "Medium";
+    if (gameSettings.getDifficulty() == Difficulty::Easy) diffStr = "Easy";
+    else if (gameSettings.getDifficulty() == Difficulty::Hard) diffStr = "Hard";
+    
+    difficultyText.setString("Difficulty: " + diffStr);
+    difficultyText.setCharacterSize(30);
+    difficultyText.setPosition(sf::Vector2f{static_cast<float>(Constants::WINDOW_WIDTH) / 2.f, 250.f});
+    centerOrigin(difficultyText);
+    
+    volumeText.setString("Volume: " + std::to_string(static_cast<int>(gameSettings.getVolume())) + "%");
+    volumeText.setCharacterSize(30);
+    volumeText.setPosition(sf::Vector2f{static_cast<float>(Constants::WINDOW_WIDTH) / 2.f, 350.f});
+    centerOrigin(volumeText);
+    
+    float vol = gameSettings.getVolume();
+    volumeBarFill.setSize(sf::Vector2f{200.f * (vol / 100.f), 20.f});
+}
+
+void Game::renderSettings() {
+    window.draw(titleText);
+    window.draw(difficultyText);
+    window.draw(volumeText);
+    window.draw(volumeBarBg);
+    window.draw(volumeBarFill);
+    window.draw(backText);
+}
+
+void Game::updateAudioVolume() {
+    float vol = gameSettings.getVolume();
+    bgMusic.setVolume(vol * 0.4f); 
+    jumpSound.setVolume(vol);
+    shootSound.setVolume(vol);
 }

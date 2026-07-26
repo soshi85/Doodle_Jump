@@ -14,6 +14,8 @@ private:
     int score;
     const sf::Texture* textureLeft;
     const sf::Texture* textureRight;
+    bool isSuckedStatus = false;
+    sf::Vector2f blackHoleCenter;
 
 public:
 
@@ -30,5 +32,7 @@ public:
     void move(sf::Vector2f offset);
     int getScore() const;
     bool wantsToShoot();
+    void startSucking(sf::Vector2f centerPos);
+    bool isFullySucked() const;
 };
 

@@ -1,10 +1,12 @@
 #pragma once
 #include <string>
+#include <vector>
+#include "GameSetting.hpp"
 
 class HighScoreManager{
 private:
     std::string filepath;
-    int highScore;
+    std::vector<int> highScores;
 
     void load();
     void save() const;
@@ -12,6 +14,6 @@ private:
 public:
     explicit HighScoreManager(std::string path="highscore.txt");
 
-    int get() const;
-    bool reportScore(int newScore);
+    int get(Difficulty diff) const;
+    bool reportScore(int newScore, Difficulty diff);
 };

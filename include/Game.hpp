@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -12,11 +13,13 @@
 #include "Button.hpp"
 #include "Monster.hpp"
 #include "Bullet.hpp"
+#include "GameSetting.hpp"
 
 enum class GameState{
     MainMenu,
     Gameplay,
-    GameOver
+    GameOver, 
+    Settings
 };
 
 class Game{
@@ -32,6 +35,8 @@ private:
     std::unique_ptr<Player> player;
     PlatformManager platformManager;
 
+    float shootTimer = 0.f; 
+
     sf::Sprite backgroundSprite;
 
     sf::Text titleText;
@@ -40,12 +45,31 @@ private:
     sf::Text gameOverText;
     sf::Text finalScoreText;
 
+    GameSettings gameSettings;
+
+    sf::Text settingsButtonText;
+    sf::Text difficultyText;
+    sf::Text volumeText;
+    sf::Text backText;
+
+    sf::RectangleShape volumeBarBg;  
+    sf::RectangleShape volumeBarFill;
+
     Button startButton;
     Button restartButton;
     Button menuButton;
 
     std::vector<Bullet*> bullets;
 
+    ResourceManager<sf::SoundBuffer> soundManager;
+    sf::Sound jumpSound;
+    sf::Sound shootSound;
+    sf::Music bgMusic;
+
+    
+    void updateAudioVolume();
+    void updateSettingsTexts();
+    void renderSettings();
     void processEvents();
     void update(sf::Time deltaTime);
     void render();

@@ -6,6 +6,8 @@
 #include "Platform.hpp"
 #include "ResourceManager.hpp"
 #include "../include/Monster.hpp"
+#include "../include/Hole.hpp"
+#include "GameSetting.hpp"
 
 class Player;
 
@@ -13,6 +15,8 @@ class PlatformManager{
 private:
     std::vector<std::unique_ptr<Platform>> platforms;
     std::vector<std::unique_ptr<Monster>> monsters; 
+    std::vector<std::unique_ptr<Hole>> holes;
+    Difficulty currentDiff = Difficulty::Medium;
 
     ResourceManager<sf::Texture>& textureManager;
 
@@ -28,9 +32,10 @@ public:
     void update(sf::Time deltaTime, float scrollAmount);
     void render(sf::RenderWindow& window);
     void checkCollisions(Player& player);
-
+    void setDifficulty(Difficulty diff) { currentDiff = diff; }
 
     bool isSpaceFree(const sf::FloatRect& bounds) const;
 
     std::vector<std::unique_ptr<Monster>>& getMonsters() { return monsters; }
+    std::vector<std::unique_ptr<Hole>>& getHoles() { return holes; }
 };

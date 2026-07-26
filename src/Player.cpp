@@ -25,6 +25,19 @@ Player::Player(const sf::Texture& leftTex, const sf::Texture& rightTex, const sf
 void Player::update(sf::Time deltaTime){
     float dt = deltaTime.asSeconds();
     
+    if (isSuckedStatus) {
+    
+        sprite.rotate(sf::Angle(sf::degrees(720.f * dt)));
+        
+        sprite.scale(sf::Vector2f{0.95f, 0.95f});
+    
+        sf::Vector2f currentPos = sprite.getPosition();
+        sf::Vector2f direction = blackHoleCenter - currentPos;
+        sprite.move(sf::Vector2f{direction.x * 2.f * dt, direction.y * 2.f * dt});
+        
+        return; 
+    }
+
     if (fireCooldown > 0.f) {
         fireCooldown -= dt;
     }
@@ -117,4 +130,14 @@ bool Player::wantsToShoot() {
         return true;
     }
     return false;
+}
+
+void Player::startSucking(sf::Vector2f centerPos) {
+    isSuckedStatus = true;
+    blackHoleCenter = centerPos;
+    velocity = sf::Vector2f{0.f, 0.f}; 
+}
+
+bool Player::isFullySucked() const {
+    return sprite.getScale().x < 0.05f; 
 }
